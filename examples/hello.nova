@@ -1,0 +1,15 @@
+forge program "HelloNova"
+
+begin
+    let name: Text = "Nova"
+    let age: Int = 15
+    let pi: Float = 3.14
+    let ready: Bool = true
+
+    show "Hello from Nova!"
+    show name
+    show age
+    show pi
+    show ready
+    show age + 2
+end
