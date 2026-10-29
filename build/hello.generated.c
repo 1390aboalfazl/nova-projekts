@@ -14,5 +14,9 @@ int main(void) {
     printf("%.15g\n", (double)(pi));
     printf("%s\n", (ready) ? "true" : "false");
     printf("%lld\n", (long long)((age + 2)));
+    const char * titel = "test";
+    const char * body = "dxddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+    printf("%s\n", titel);
+    printf("%s\n", body);
     return 0;
 }
