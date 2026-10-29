@@ -1,65 +1,68 @@
-from .tokens import Token
-from .errors import NovaSyntaxError
+from dataclasses import dataclass
+
+@dataclass
+class Token:
+    kind: str
+    value: object
+    line: int
+    col: int
 
 KEYWORDS = {
-    "forge": "FORGE", "program": "PROGRAM", "begin": "BEGIN", "end": "END",
-    "let": "LET", "show": "SHOW", "true": "TRUE", "false": "FALSE",
-    "Int": "TYPE", "Float": "TYPE", "Bool": "TYPE", "Text": "TYPE",
+    'forge','program','begin','end','let','const','show','if','else','while','for','in',
+    'function','return','class','new','true','false','null','and','or','not','break','continue',
+    'Int','Float','Bool','Text','List','self'
 }
-SINGLE = {":": "COLON", "=": "EQUAL", "+": "PLUS", "-": "MINUS",
-          "*": "STAR", "/": "SLASH", "(": "LPAREN", ")": "RPAREN"}
 
-def tokenize(source: str) -> list[Token]:
-    out = []
-    i, line, col = 0, 1, 1
-    while i < len(source):
-        ch = source[i]
-        if ch in " \t\r":
-            i += 1; col += 1; continue
-        if ch == "\n":
-            out.append(Token("NEWLINE", "\\n", line, col))
-            i += 1; line += 1; col = 1; continue
-        if ch == "#":
-            while i < len(source) and source[i] != "\n":
-                i += 1; col += 1
-            continue
-        if ch == '"':
-            sl, sc = line, col
-            i += 1; col += 1; chars = []
-            while i < len(source) and source[i] != '"':
-                if source[i] == "\n":
-                    raise NovaSyntaxError(f"Line {line}, column {col}: newline in string")
-                if source[i] == "\\":
-                    i += 1; col += 1
-                    if i >= len(source):
-                        raise NovaSyntaxError(f"Line {line}, column {col}: unfinished escape")
-                    chars.append({"n":"\n", "t":"\t", '"':'"', "\\":"\\"}.get(source[i], source[i]))
-                    i += 1; col += 1
-                else:
-                    chars.append(source[i]); i += 1; col += 1
-            if i >= len(source):
-                raise NovaSyntaxError(f"Line {sl}, column {sc}: unterminated string")
-            i += 1; col += 1
-            out.append(Token("STRING", "".join(chars), sl, sc)); continue
-        if ch.isdigit():
-            start, sc = i, col
-            while i < len(source) and source[i].isdigit():
-                i += 1; col += 1
-            kind = "INT"
-            if i + 1 < len(source) and source[i] == "." and source[i+1].isdigit():
-                kind = "FLOAT"; i += 1; col += 1
-                while i < len(source) and source[i].isdigit():
-                    i += 1; col += 1
-            out.append(Token(kind, source[start:i], line, sc)); continue
-        if ch.isalpha() or ch == "_":
-            start, sc = i, col
-            while i < len(source) and (source[i].isalnum() or source[i] == "_"):
-                i += 1; col += 1
-            word = source[start:i]
-            out.append(Token(KEYWORDS.get(word, "IDENT"), word, line, sc)); continue
-        if ch in SINGLE:
-            out.append(Token(SINGLE[ch], ch, line, col))
-            i += 1; col += 1; continue
-        raise NovaSyntaxError(f"Line {line}, column {col}: unexpected character {ch!r}")
-    out.append(Token("EOF", "", line, col))
-    return out
+class LexError(Exception): pass
+
+class Lexer:
+    def __init__(self, source): self.source=source; self.i=0; self.line=1; self.col=1
+    def peek(self, n=0):
+        j=self.i+n
+        return self.source[j] if j < len(self.source) else '\0'
+    def advance(self):
+        c=self.peek(); self.i+=1
+        if c=='\n': self.line+=1; self.col=1
+        else: self.col+=1
+        return c
+    def tokenize(self):
+        out=[]
+        while self.peek()!='\0':
+            c=self.peek()
+            if c.isspace(): self.advance(); continue
+            if c=='#' or (c=='/' and self.peek(1)=='/'):
+                while self.peek() not in ('\n','\0'): self.advance()
+                continue
+            line,col=self.line,self.col
+            if c.isalpha() or c=='_':
+                s=''
+                while self.peek().isalnum() or self.peek()=='_': s+=self.advance()
+                out.append(Token('KW' if s in KEYWORDS else 'IDENT',s,line,col)); continue
+            if c.isdigit():
+                s=''
+                while self.peek().isdigit(): s+=self.advance()
+                if self.peek()=='.' and self.peek(1).isdigit():
+                    s+=self.advance()
+                    while self.peek().isdigit(): s+=self.advance()
+                    out.append(Token('NUMBER',float(s),line,col))
+                else: out.append(Token('NUMBER',int(s),line,col))
+                continue
+            if c in ('"', "'"):
+                quote=self.advance(); s=''
+                while self.peek()!=quote and self.peek()!='\0':
+                    ch=self.advance()
+                    if ch=='\\':
+                        e=self.advance(); s += {'n':'\n','t':'\t','r':'\r','\\':'\\','"':'"',"'":"'"}.get(e,e)
+                    else: s+=ch
+                if self.peek()=='\0': raise LexError(f'{line}:{col}: رشته بسته نشده است')
+                self.advance(); out.append(Token('STRING',s,line,col)); continue
+            matched=False
+            for op in ('==','!=','<=','>=','->','..','+=','-=','*=','/='):
+                if self.source.startswith(op,self.i):
+                    for _ in op: self.advance()
+                    out.append(Token('OP',op,line,col)); matched=True; break
+            if matched: continue
+            if c in '+-*/%=<>!': self.advance(); out.append(Token('OP',c,line,col)); continue
+            if c in '(){}[],:;.': self.advance(); out.append(Token('PUNC',c,line,col)); continue
+            raise LexError(f'{line}:{col}: نویسهٔ ناشناخته {c!r}')
+        out.append(Token('EOF','',self.line,self.col)); return out

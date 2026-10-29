@@ -1,0 +1,7 @@
+forge program "Nova desktop GUI"
+begin
+    gui_window("My first Nova app", 520, 280)
+    gui_label("Hello from Nova!")
+    gui_label("This is a native desktop window using Tkinter.")
+    gui_button("Close the app")
+end

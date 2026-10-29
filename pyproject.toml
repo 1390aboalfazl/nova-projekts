@@ -4,16 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nova-lang"
-version = "0.1.0"
-description = "Experimental Nova language compiler"
+version = "0.2.0"
+description = "Nova programming language — console-first interpreter with optional desktop GUI"
+readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+license = {text = "MIT"}
+authors = [{name = "Nova Language Project"}]
 
 [project.scripts]
 nova = "nova.cli:main"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

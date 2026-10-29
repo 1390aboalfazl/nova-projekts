@@ -12,8 +12,4 @@ begin
     show pi
     show ready
     show age + 2
-    let titel: Text = "test"
-    let body: Text = "dxddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-    show titel
-    show body
 end

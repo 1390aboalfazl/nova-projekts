@@ -1,1 +1,1 @@
-Nova v0.1 uses the C standard library. Reserved for future runtime support, including garbage collection.
+Nova v0.2 uses a Python interpreter runtime. Desktop GUI built-ins are implemented through Tkinter when available.

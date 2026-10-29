@@ -1,16 +1,16 @@
 from pathlib import Path
 from .parser import parse
-from .semantic import check
-from .codegen.c_backend import generate
+from .runtime import Interpreter, NovaRuntimeError
+from .lexer import LexError
+from .parser import ParseError
 
-def compile_source(source: str) -> str:
-    program = parse(source)
-    symbols = check(program)
-    return generate(program, symbols)
+def run_source(source, output=print, input_fn=input):
+    tree=parse(source); Interpreter(output=output,input_fn=input_fn).run(tree)
 
-def compile_file(source_path, output_path):
-    source_path, output_path = Path(source_path), Path(output_path)
-    generated = compile_source(source_path.read_text(encoding="utf-8"))
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(generated, encoding="utf-8")
-    return output_path
+def run_file(path):
+    path=Path(path)
+    try: source=path.read_text(encoding='utf-8')
+    except OSError as e: raise NovaRuntimeError(f'خواندن فایل ممکن نیست: {e}')
+    return run_source(source)
+
+__all__=['parse','run_source','run_file','NovaRuntimeError','LexError','ParseError']

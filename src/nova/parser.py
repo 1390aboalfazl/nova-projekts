@@ -1,105 +1,128 @@
-from .lexer import tokenize
-from .ast_nodes import Program, Let, Show, Literal, Name, Unary, Binary
-from .errors import NovaSyntaxError
+from .lexer import Lexer, LexError
 
-def parse(source: str) -> Program:
-    return Parser(source).parse()
+class ParseError(Exception): pass
 
 class Parser:
-    def __init__(self, source):
-        self.tokens = tokenize(source)
-        self.i = 0
-
-    @property
-    def current(self):
-        return self.tokens[self.i]
-
-    def advance(self):
-        t = self.current
-        if t.kind != "EOF": self.i += 1
-        return t
-
-    def expect(self, kind, message=None):
-        if self.current.kind != kind:
-            t = self.current
-            raise NovaSyntaxError(f"Line {t.line}, column {t.column}: {message or 'expected ' + kind}")
-        return self.advance()
-
-    def skip_newlines(self):
-        while self.current.kind == "NEWLINE": self.advance()
-
+    def __init__(self, source): self.t=Lexer(source).tokenize(); self.i=0
+    def cur(self): return self.t[self.i]
+    def peek(self,n=1): return self.t[min(self.i+n,len(self.t)-1)]
+    def take(self): x=self.cur(); self.i+=1; return x
+    def isv(self,v): return self.cur().value==v
+    def match(self,*vs):
+        if self.cur().value in vs: return self.take()
+        return None
+    def expect(self,v):
+        if not self.isv(v): raise ParseError(f'{self.cur().line}:{self.cur().col}: انتظار {v!r} بود، {self.cur().value!r} دریافت شد')
+        return self.take()
+    def name(self):
+        if self.cur().kind not in ('IDENT','KW') or self.cur().value in ('begin','end','if','else','while','for','in','return','class','function','let','const','show','new'):
+            raise ParseError(f'{self.cur().line}:{self.cur().col}: نام معتبر انتظار می‌رفت')
+        return self.take().value
     def parse(self):
-        self.skip_newlines()
-        self.expect("FORGE", "program must start with 'forge'")
-        self.expect("PROGRAM", "expected 'program' after 'forge'")
-        name = self.expect("STRING", "expected quoted program name").value
-        self.expect("NEWLINE", "expected newline after header")
-        self.skip_newlines()
-        self.expect("BEGIN", "expected 'begin'")
-        self.expect("NEWLINE", "expected newline after begin")
-        self.skip_newlines()
-        statements = []
-        while self.current.kind not in ("END", "EOF"):
-            statements.append(self.statement())
-            if self.current.kind == "NEWLINE":
-                self.skip_newlines()
-            elif self.current.kind != "END":
-                t = self.current
-                raise NovaSyntaxError(f"Line {t.line}, column {t.column}: expected end of statement")
-        self.expect("END", "expected 'end' to close program")
-        self.skip_newlines()
-        self.expect("EOF", "unexpected content after program")
-        return Program(name, statements)
+        if self.match('forge'):
+            self.expect('program')
+            if self.cur().kind=='STRING': self.take()
+        self.expect('begin'); body=self.block_until('end'); self.expect('end')
+        if self.cur().kind!='EOF': raise ParseError(f'{self.cur().line}:{self.cur().col}: متن اضافی بعد از end')
+        return ('block',body)
+    def block_until(self,*ends):
+        body=[]
+        while self.cur().kind!='EOF' and self.cur().value not in ends:
+            if self.match(';',','): continue
+            body.append(self.stmt())
+            self.match(';')
+        return body
+    def body(self):
+        self.expect('begin'); b=self.block_until('end'); self.expect('end'); return ('block',b)
+    def stmt(self):
+        tok=self.cur(); v=tok.value
+        if v in ('let','const'):
+            const=self.take().value=='const'; name=self.name(); typ=None
+            if self.match(':'): typ=self.name()
+            value=None
+            if self.match('='): value=self.expr()
+            if value is None and not const: value=('literal',None)
+            if value is None: raise ParseError(f'{tok.line}:{tok.col}: const باید مقدار اولیه داشته باشد')
+            return ('decl',name,typ,value,const)
+        if self.match('show'): return ('show',self.expr())
+        if self.match('if'):
+            cond=self.expr(); yes=self.body(); no=('block',[])
+            if self.match('else'):
+                if self.isv('if'): no=('block',[self.stmt()])
+                else: no=self.body()
+            return ('if',cond,yes,no)
+        if self.match('while'): return ('while',self.expr(),self.body())
+        if self.match('for'):
+            var=self.name(); self.expect('in'); start=self.expr(); self.expect('..'); stop=self.expr(); step=('literal',1)
+            if self.match('by'): step=self.expr()
+            return ('for',var,start,stop,step,self.body())
+        if self.match('function'):
+            name=self.name(); params=self.params(); ret=None
+            if self.match('->'): ret=self.name()
+            return ('function',name,params,ret,self.body())
+        if self.match('class'):
+            name=self.name(); self.expect('begin'); members=[]
+            while not self.isv('end') and self.cur().kind!='EOF':
+                if self.match(';'): continue
+                members.append(self.stmt())
+            self.expect('end'); return ('class',name,members)
+        if self.match('return'):
+            if self.isv('end') or self.isv(';'): return ('return',('literal',None))
+            return ('return',self.expr())
+        if self.match('break'): return ('break',)
+        if self.match('continue'): return ('continue',)
+        if self.isv('begin'): return self.body()
+        e=self.expr()
+        if self.cur().value in ('=','+=','-=','*=','/='):
+            op=self.take().value; return ('assign',e,op,self.expr())
+        return ('exprstmt',e)
+    def params(self):
+        self.expect('('); p=[]
+        if not self.isv(')'):
+            while True:
+                n=self.name(); typ=None
+                if self.match(':'): typ=self.name()
+                p.append((n,typ))
+                if not self.match(','): break
+        self.expect(')'); return p
+    PRE={'or':1,'and':2,'==':3,'!=':3,'<':3,'>':3,'<=':3,'>=':3,'in':3,'+':4,'-':4,'*':5,'/':5,'%':5}
+    def expr(self,minp=0):
+        t=self.take(); v=t.value
+        if t.kind in ('NUMBER','STRING'): left=('literal',v)
+        elif v in ('true','false','null'): left=('literal',{'true':True,'false':False,'null':None}[v])
+        elif v in ('-','+','!','not'):
+            left=('unary',v,self.expr(6))
+        elif v=='(':
+            left=self.expr(); self.expect(')')
+        elif v=='[':
+            vals=[]
+            if not self.isv(']'):
+                while True:
+                    vals.append(self.expr())
+                    if not self.match(','): break
+            self.expect(']'); left=('list',vals)
+        elif v=='new': left=('new',self.name(),self.call_args())
+        elif t.kind in ('IDENT','KW') and v not in ('end','else','begin'):
+            left=('var',v)
+        else: raise ParseError(f'{t.line}:{t.col}: عبارت نامعتبر {v!r}')
+        while True:
+            if self.isv('('): left=('call',left,self.call_args()); continue
+            if self.match('.'):
+                left=('member',left,self.name()); continue
+            if self.match('['):
+                idx=self.expr(); self.expect(']'); left=('index',left,idx); continue
+            op=self.cur().value
+            if op=='..' or op not in self.PRE or self.PRE[op]<minp: break
+            prec=self.PRE[op]; self.take(); right=self.expr(prec+1); left=('binary',op,left,right)
+        return left
+    def call_args(self):
+        self.expect('('); args=[]
+        if not self.isv(')'):
+            while True:
+                args.append(self.expr())
+                if not self.match(','): break
+        self.expect(')'); return args
 
-    def statement(self):
-        if self.current.kind == "LET":
-            start = self.advance()
-            name = self.expect("IDENT", "expected variable name").value
-            self.expect("COLON", "expected ':' after variable name")
-            typ = self.expect("TYPE", "expected type Int, Float, Bool, or Text").value
-            self.expect("EQUAL", "expected '=' before initializer")
-            return Let(name, typ, self.expression(), start.line)
-        if self.current.kind == "SHOW":
-            start = self.advance()
-            return Show(self.expression(), start.line)
-        t = self.current
-        raise NovaSyntaxError(f"Line {t.line}, column {t.column}: expected let or show")
-
-    def expression(self):
-        node = self.term()
-        while self.current.kind in ("PLUS", "MINUS"):
-            op = self.advance()
-            node = Binary(node, op.value, self.term(), op.line)
-        return node
-
-    def term(self):
-        node = self.unary()
-        while self.current.kind in ("STAR", "SLASH"):
-            op = self.advance()
-            node = Binary(node, op.value, self.unary(), op.line)
-        return node
-
-    def unary(self):
-        if self.current.kind == "MINUS":
-            t = self.advance()
-            return Unary("-", self.unary(), t.line)
-        return self.primary()
-
-    def primary(self):
-        t = self.current
-        if t.kind == "INT":
-            self.advance(); return Literal(int(t.value), "Int", t.line)
-        if t.kind == "FLOAT":
-            self.advance(); return Literal(float(t.value), "Float", t.line)
-        if t.kind == "STRING":
-            self.advance(); return Literal(t.value, "Text", t.line)
-        if t.kind in ("TRUE", "FALSE"):
-            self.advance(); return Literal(t.kind == "TRUE", "Bool", t.line)
-        if t.kind == "IDENT":
-            self.advance(); return Name(t.value, t.line)
-        if t.kind == "LPAREN":
-            self.advance()
-            value = self.expression()
-            self.expect("RPAREN", "expected ')'")
-            return value
-        raise NovaSyntaxError(f"Line {t.line}, column {t.column}: expected expression")
+def parse(source):
+    try: return Parser(source).parse()
+    except LexError: raise

@@ -1,23 +1,25 @@
-# Nova Language Specification — v0.1
+# Nova v0.2 — language reference
 
-A program has the form:
+## Program structure
+A source file starts with `forge program "optional title" begin` and ends with `end`.
 
-```text
-forge program "ProgramName"
+## Declarations
+`let age: Int = 18`; `const appName: Text = "Nova"`. Types are optional. Supported annotations: `Int`, `Float`, `Bool`, `Text`, `List`.
 
-begin
-    let count: Int = 42
-    show count
-end
-```
+## Statements
+- `show expression`
+- `if condition begin ... end else begin ... end`
+- `while condition begin ... end`
+- `for item in start..stop begin ... end`; stop is exclusive. Optional `by step` controls step size.
+- `function name(param: Type) -> ReturnType begin ... end`
+- `return expression`, `break`, `continue`
+- `class Name begin ... end`; methods are functions; use `self.field` and `new Name(args)`.
 
-Primitive types: `Int` (signed 64-bit), `Float` (double), `Bool`, `Text`.
-Statements: `let name: Type = expression` declares an immutable variable; `show expression`
-prints one value followed by a newline.
+## Expressions
+Numbers, quoted strings, `true`, `false`, `null`, lists, calls, property access, indexing, unary `-` and `not`; arithmetic `+ - * / %`; comparisons `== != < <= > >=`; boolean `and`, `or`; membership `in`.
 
-Expressions support literals, variable references, parentheses, unary minus, and numeric
-`+`, `-`, `*`, `/`. Integer values can be promoted to Float when initializing a Float.
-Duplicate names and unknown names are errors. Integer division returns Float.
+## Built-ins
+`input(prompt)`, `len(value)`, `str(value)`, `int(value)`, `float(value)`, `abs(value)`, `sqrt(value)`, `round(value)`, `range(stop)` / `range(start, stop)`, `append(list, value)`, `remove(list, value)`, `clear(list)`.
 
-Not supported in v0.1: assignment, functions, control flow, modules, automatic memory
-management, optimizations, and WebAssembly output.
+## Desktop GUI
+`gui_window(title, width, height)`, `gui_label(text)`, `gui_button(text)`. Requires Tkinter. Buttons currently do not invoke Nova callbacks.

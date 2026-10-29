@@ -1,1 +1,1 @@
-Reserved for future standard-library modules.
+Built-in functions are currently registered by `src/nova/runtime.py`. See `docs/language-spec.md`.

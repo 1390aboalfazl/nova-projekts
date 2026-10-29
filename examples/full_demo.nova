@@ -1,0 +1,44 @@
+forge program "Nova v0.2 demo"
+begin
+    show "=== Nova v0.2 ==="
+    let total: Int = 0
+    for i in 1..6 begin
+        total += i
+    end
+    show "Sum 1..5 = " + str(total)
+
+    let score: Int = 87
+    if score >= 90 begin
+        show "Grade: A"
+    end else if score >= 80 begin
+        show "Grade: B"
+    end else begin
+        show "Keep practicing"
+    end
+
+    function factorial(n: Int) -> Int begin
+        if n <= 1 begin
+            return 1
+        end
+        return n * factorial(n - 1)
+    end
+    show "5! = " + str(factorial(5))
+
+    let names = ["Ada", "Linus", "Grace"]
+    append(names, "Nova")
+    for i in 0..len(names) begin
+        show names[i]
+    end
+
+    class Person begin
+        function init(name: Text, age: Int) begin
+            self.name = name
+            self.age = age
+        end
+        function greet() begin
+            show "Hello, I am " + self.name + " and I am " + str(self.age)
+        end
+    end
+    let person = new Person("Nova", 1)
+    person.greet()
+end

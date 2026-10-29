@@ -1,0 +1,5 @@
+forge program "Console input"
+begin
+    let name: Text = input("What is your name? ")
+    show "Welcome, " + name + "!"
+end

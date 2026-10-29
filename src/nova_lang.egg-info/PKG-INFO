@@ -1,5 +1,0 @@
-Metadata-Version: 2.4
-Name: nova-lang
-Version: 0.1.0
-Summary: Experimental Nova language compiler
-Requires-Python: >=3.10
